@@ -1,0 +1,63 @@
+﻿// =============================================================================
+// PRODUCTION DAX MEASURES: PRO-DOPS POWER BI MODEL
+// =============================================================================
+
+// 1. Total Base Fare Routed Through Desk
+Total Base Fare = 
+SUM(Fact_Ticket_Bookings[irctc_base_fare])
+
+// 2. Gross Service Charge Generated (Exclusive of GST)
+Gross Service Charge = 
+SUM(Fact_Ticket_Bookings[service_charge_amt])
+
+// 3. Total GST Remittance Payable (18% Bucket)
+Total GST Collected = 
+SUM(Fact_Ticket_Bookings[gst_collected])
+
+// 4. Commissions Disbursed to External Customer IRCTC ID Holders
+Customer ID Owner Commission = 
+SUM(Fact_Ticket_Bookings[customer_id_payout])
+
+// 5. Net Daily Operating Profit
+Net Daily Operating Profit = 
+[Gross Service Charge] - [Customer ID Owner Commission]
+
+// 6. 8-10-11 AM Peak Booking Profitability Share
+Peak Tatkal Profit Margin = 
+DIVIDE(
+    CALCULATE(
+        [Net Daily Operating Profit], 
+        Fact_Ticket_Bookings[booking_slot_hour] IN {8, 10, 11}
+    ),
+    [Net Daily Operating Profit],
+    0
+)
+
+// 7. Time Intelligence: Month-to-Date (MTD) Profit
+MTD Operating Profit = 
+TOTALMTD([Net Daily Operating Profit], Dim_Date[Date])
+
+// 8. Time Intelligence: Same Period Last Year (SPLY) Comparison
+Profit SPLY = 
+CALCULATE([Net Daily Operating Profit], SAMEPERIODLASTYEAR(Dim_Date[Date]))
+
+// 9. Profit Growth Percentage YoY
+YoY Profit Growth % = 
+DIVIDE([Net Daily Operating Profit] - [Profit SPLY], [Profit SPLY], 0)
+
+// 10. High-Risk Waitlist Alert Measure (Conditional Formatting)
+Waitlist Risk Indicator = 
+VAR WLCat = SELECTEDVALUE(Fact_Ticket_Bookings[wl_category])
+VAR WLNum = SELECTEDVALUE(Fact_Ticket_Bookings[initial_wl_number])
+RETURN
+    SWITCH(
+        TRUE(),
+        WLCat = "TQWL" && WLNum > 5, "CRITICAL RISK: Suggest Tatkal Customer Action",
+        WLCat = "GNWL" && WLNum <= 20, "HIGH CHANCE: GNWL Recommended",
+        WLCat = "RLWL" && WLNum > 10, "LOW PROBABILITY: Suggest Route Reroute",
+        "STABLE"
+    )
+
+// 11. Unused Advance Refund Obligation (PT Quota)
+Total Refund Liability = 
+SUM(Fact_Ticket_Bookings[refund_amount])
